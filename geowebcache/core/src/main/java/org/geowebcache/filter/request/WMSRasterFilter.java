@@ -25,6 +25,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.imageio.ImageIO;
 import org.apache.http.HttpResponse;
+import org.apache.http.util.EntityUtils;
 import org.geotools.util.logging.Logging;
 import org.geowebcache.GeoWebCacheException;
 import org.geowebcache.grid.BoundingBox;
@@ -120,38 +121,45 @@ public class WMSRasterFilter extends RasterFilter {
         HttpResponse httpResponse = null;
         BufferedImage img = null;
 
-        httpResponse = srcHelper.executeRequest(wmsUrl, requestParams, backendTimeout, WMSLayer.HttpRequestMode.Get);
+        try {
+            httpResponse =
+                    srcHelper.executeRequest(wmsUrl, requestParams, backendTimeout, WMSLayer.HttpRequestMode.Get);
 
-        int statusCode = httpResponse.getStatusLine().getStatusCode();
-        if (statusCode != 200) {
-            throw new GeoWebCacheException("Received response code " + statusCode + "\n");
-        }
+            int statusCode = httpResponse.getStatusLine().getStatusCode();
+            if (statusCode != 200) {
+                throw new GeoWebCacheException("Received response code " + statusCode + "\n");
+            }
 
-        if (!httpResponse.getFirstHeader("Content-Type").getValue().startsWith("image/")) {
-            throw new GeoWebCacheException("Unexpected response content type "
-                    + httpResponse.getFirstHeader("Content-Type").getValue()
-                    + " , request was "
-                    + urlStr
-                    + "\n");
-        }
+            if (!httpResponse.getFirstHeader("Content-Type").getValue().startsWith("image/")) {
+                throw new GeoWebCacheException("Unexpected response content type "
+                        + httpResponse.getFirstHeader("Content-Type").getValue()
+                        + " , request was "
+                        + urlStr
+                        + "\n");
+            }
 
-        byte[] ret = ServletUtils.readStream(httpResponse.getEntity().getContent(), 16384, 2048);
+            byte[] ret = ServletUtils.readStream(httpResponse.getEntity().getContent(), 16384, 2048);
 
-        InputStream is = new ByteArrayInputStream(ret);
+            InputStream is = new ByteArrayInputStream(ret);
 
-        img = ImageIO.read(is);
+            img = ImageIO.read(is);
 
-        if (img.getWidth() != widthHeight[0] || img.getHeight() != widthHeight[1]) {
-            String msg = "WMS raster filter has dimensions "
-                    + img.getWidth()
-                    + ","
-                    + img.getHeight()
-                    + ", expected "
-                    + widthHeight[0]
-                    + ","
-                    + widthHeight[1]
-                    + "\n";
-            throw new GeoWebCacheException(msg);
+            if (img.getWidth() != widthHeight[0] || img.getHeight() != widthHeight[1]) {
+                String msg = "WMS raster filter has dimensions "
+                        + img.getWidth()
+                        + ","
+                        + img.getHeight()
+                        + ", expected "
+                        + widthHeight[0]
+                        + ","
+                        + widthHeight[1]
+                        + "\n";
+                throw new GeoWebCacheException(msg);
+            }
+        } finally {
+            if (httpResponse != null) {
+                EntityUtils.consumeQuietly(httpResponse.getEntity());
+            }
         }
 
         return img;
